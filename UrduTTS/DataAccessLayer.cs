@@ -85,7 +85,47 @@ namespace UrduTTS
                 throw;
             }
         }
-        
+        public static string UrduWordFromDiacriticRep(string diacritic)
+        {
+            try
+            {
+                List<WordRecord> records = null;
+
+                // If caching is enabled, check in cache register first
+                if (caching)
+                    records = CheckThroughCache(diacritic);
+
+                //
+                if (records != null)
+                {
+                    return records[0].UrduWord;
+                }
+                else
+                {
+                    DataTable table = Database.SelectRecord("Diacritic", diacritic);
+                    if (table.Rows.Count > 0)
+                    {
+                        records = new List<WordRecord>();
+                        for (int i = 0; i < table.Rows.Count; i++)
+                        {
+                            records.Add(new WordRecord(Convert.ToInt32(table.Rows[i][0].ToString()), table.Rows[i][1].ToString(), table.Rows[i][2].ToString(), table.Rows[i][3].ToString(), table.Rows[i][4].ToString()));
+
+                            //If caching is enabled, enter the newly fetched data into the cache register
+                            if (caching)
+                                cacheRegister.Add(new WordRecord(Convert.ToInt32(table.Rows[i][0].ToString()), table.Rows[i][1].ToString(), table.Rows[i][2].ToString(), table.Rows[i][3].ToString(), table.Rows[i][4].ToString()));
+                        }
+                        return records[0].UrduWord;
+                    }
+                    return "";
+                }
+
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
         public static List<WordRecord> GetAllRecords()
         {
             try

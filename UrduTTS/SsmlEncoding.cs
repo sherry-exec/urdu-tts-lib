@@ -12,7 +12,7 @@ namespace UrduTTS
     public class SsmlEncoding
     {
         // Private data members
-        SpeechSynthesizer synthesizer = null;
+        SpeechSynthesizer synthesizer = new SpeechSynthesizer();
         PromptBuilder ssmlBuilder = null;
         
         // Constructors
@@ -20,11 +20,8 @@ namespace UrduTTS
         {
             try
             {
-                synthesizer = new SpeechSynthesizer();
                 synthesizer.Rate = 1;
                 synthesizer.TtsVolume = 70;
-
-                TextProcessing.Init();
             }
             catch (Exception)
             {

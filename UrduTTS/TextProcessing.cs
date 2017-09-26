@@ -9,53 +9,28 @@ namespace UrduTTS
     public static class TextProcessing
     {
         private static List<Delimeter> delimeters = new List<Delimeter>();
-
-        // Constructor
-        public static void Init()
-        {
-            try
-            {
-                delimeters.Add(new Delimeter(" ", "none"));
-                delimeters.Add(new Delimeter(",", "x-weak"));
-                delimeters.Add(new Delimeter("،", "x-weak"));
-                delimeters.Add(new Delimeter("۔", "weak"));
-                delimeters.Add(new Delimeter("؟", "weak"));
-                delimeters.Add(new Delimeter(".", "weak"));
-                delimeters.Add(new Delimeter("?", "weak"));
-                delimeters.Add(new Delimeter("!", "weak"));
-                delimeters.Add(new Delimeter("\n", "medium"));
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-        }
         
         // Returns List<bool, Token>
         // boolean tells if the word is entered in the database, if the token is a word
-        public static List<Tuple<bool, Token>> classifyTokens(string text)
+        public static List<string> UnrecognizedWords(string text)
         {
             try
             {
                 List<Token> tokens = parse(text);
-                List<Tuple<bool, Token>> classified = new List<Tuple<bool, Token>>();
-                
+                List<string> unrecognizedWords = new List<string>();
+
                 for (int i = 0; i < tokens.Count; i++)
                 {
-                    if (tokens[i].classPart == TokenType.Delimeter)
+                    if(tokens[i].classPart == TokenType.Word)
                     {
-                        classified.Add(new Tuple<bool, Token>(true, new Token(TokenType.Delimeter, EncodeDelimeterToPhoneme(isDelimeter(tokens[i].valuePart)))));
-                    }
-                    else if (tokens[i].classPart == TokenType.Word)
-                    {
-                        if (DataAccessLayer.SearchRecordsByWord(tokens[i].valuePart) == null)   // if word does not exist
-                            classified.Add(new Tuple<bool, Token>(false, tokens[i]));
-                        else
-                            classified.Add(new Tuple<bool, Token>(true, tokens[i]));
+                        if (DataAccessLayer.SearchRecordsByWord(tokens[i].valuePart) == null)
+                        {
+                            unrecognizedWords.Add(tokens[i].valuePart);
+                        }
                     }
                 }
 
-                return classified;
+                return unrecognizedWords;
             }
             catch (Exception)
             {
@@ -63,26 +38,30 @@ namespace UrduTTS
             }
         }
 
-        public static List<string> ToUPSReps(List<Token> tokens, List<WordRecord> selectedDiacritics)
+        public static List<string> ToUPSReps(string text)
         {
             try
             {
+                List<Token> tokens = parse(text);
+
+                List<WordRecord> temp;
                 List<string> upsReps = new List<string>();
 
                 for (int i = 0; i < tokens.Count; i++)
                 {
                     if (tokens[i].classPart == TokenType.Delimeter)
-                        upsReps.Add(tokens[i].valuePart);
+                        upsReps.Add(EncodeDelimeterToPhoneme(isDelimeter(tokens[i].valuePart)));               // encode delimeter to phoneme??????????
                     else
                     {
-                        for (int j = 0; j < selectedDiacritics.Count; j++)
-                        {
-                            if (tokens[i].valuePart == selectedDiacritics[j].UrduWord)
-                            {
-                                upsReps.Add(selectedDiacritics[j].UpsRep);
-                                break;
-                            }
-                        }
+                        // Try for Word representation
+                        temp = DataAccessLayer.SearchRecordsByWord(tokens[i].valuePart);
+
+                        // Try for Diacritic representation
+                        if(temp == null)
+                            temp = DataAccessLayer.SearchRecordsByDiacritic(tokens[i].valuePart);
+
+                        if (temp != null)
+                            upsReps.Add(temp[0].UpsRep);
                     }
                 }
 
@@ -97,15 +76,54 @@ namespace UrduTTS
         {
             try
             {
+                List<Token> tokens = parse(text);
+
+                List<WordRecord> temp;
                 List<string> ipaReps = new List<string>();
-                //List<string> urduWords = parse(text);
 
-                //for (int i = 0; i < urduWords.Count; i++)
-                //{
+                for (int i = 0; i < tokens.Count; i++)
+                {
+                    if (tokens[i].classPart == TokenType.Delimeter)
+                        ipaReps.Add(EncodeDelimeterToPhoneme(isDelimeter(tokens[i].valuePart)));               // encode delimeter to phoneme??????????
+                    else
+                    {
+                        // Try for Word representation
+                        temp = DataAccessLayer.SearchRecordsByWord(tokens[i].valuePart);
 
-                //}
+                        // Try for Diacritic representation
+                        if (temp == null)
+                            temp = DataAccessLayer.SearchRecordsByDiacritic(tokens[i].valuePart);
+
+                        if (temp != null)
+                            ipaReps.Add(temp[0].IpaRep);
+                    }
+                }
 
                 return ipaReps;
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        // Initializer
+        internal static void init()
+        {
+            try
+            {
+                if (delimeters.Count == 0)
+                {
+                    delimeters.Add(new Delimeter(" ", "none"));
+                    delimeters.Add(new Delimeter(",", "x-weak"));
+                    delimeters.Add(new Delimeter("،", "x-weak"));
+                    delimeters.Add(new Delimeter("۔", "weak"));
+                    delimeters.Add(new Delimeter("؟", "weak"));
+                    delimeters.Add(new Delimeter(".", "weak"));
+                    delimeters.Add(new Delimeter("?", "weak"));
+                    delimeters.Add(new Delimeter("!", "weak"));
+                    delimeters.Add(new Delimeter("\n", "medium"));
+                }
             }
             catch (Exception)
             {
@@ -120,6 +138,8 @@ namespace UrduTTS
         {
             try
             {
+                init();
+
                 List<Token> tokensList = new List<Token>();
                 string buffer = null;
 
@@ -188,8 +208,7 @@ namespace UrduTTS
                 throw;
             }
         }
-
-        public static short isDelimeterPhoneme(string delimPhoneme)
+        internal static short isDelimeterPhoneme(string delimPhoneme)
         {
             try
             {
