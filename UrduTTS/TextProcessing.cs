@@ -5,21 +5,16 @@ using System.Text;
 
 namespace UrduTTS
 {
-    enum TokenType { Delimeter, Word }
-
     #region Text Processing
     public static class TextProcessing
     {
-        private static List<Delimeter> delimeters = null;
+        private static List<Delimeter> delimeters = new List<Delimeter>();
 
         // Constructor
         public static void Init()
         {
             try
             {
-                delimeters = new List<Delimeter>();
-
-                // insert predefined delimeters
                 delimeters.Add(new Delimeter(" ", "none"));
                 delimeters.Add(new Delimeter(",", "x-weak"));
                 delimeters.Add(new Delimeter("،", "x-weak"));
@@ -35,22 +30,32 @@ namespace UrduTTS
                 throw;
             }
         }
-
-        public static List<string> UnrecognizedWords(string text)
+        
+        // Returns List<bool, Token>
+        // boolean tells if the word is entered in the database, if the token is a word
+        public static List<Tuple<bool, Token>> classifyTokens(string text)
         {
             try
             {
-                List<string> urduWords = parse(text);
-                List<string> unenteredWords = new List<string>();
-
-                for (int i = 0; i < urduWords.Count; i++)
+                List<Token> tokens = parse(text);
+                List<Tuple<bool, Token>> classified = new List<Tuple<bool, Token>>();
+                
+                for (int i = 0; i < tokens.Count; i++)
                 {
-                    if (isDelimeter(urduWords[i]) == -1)    // If it is not a delimeter, if it is a word
-                        if (DataAccessLayer.SearchRecordsByWord(urduWords[i]) == null)
-                            unenteredWords.Add(urduWords[i]);
+                    if (tokens[i].classPart == TokenType.Delimeter)
+                    {
+                        classified.Add(new Tuple<bool, Token>(true, new Token(TokenType.Delimeter, EncodeDelimeterToPhoneme(isDelimeter(tokens[i].valuePart)))));
+                    }
+                    else if (tokens[i].classPart == TokenType.Word)
+                    {
+                        if (DataAccessLayer.SearchRecordsByWord(tokens[i].valuePart) == null)   // if word does not exist
+                            classified.Add(new Tuple<bool, Token>(false, tokens[i]));
+                        else
+                            classified.Add(new Tuple<bool, Token>(true, tokens[i]));
+                    }
                 }
 
-                return unenteredWords;
+                return classified;
             }
             catch (Exception)
             {
@@ -58,38 +63,27 @@ namespace UrduTTS
             }
         }
 
-        public static List<string> ToUPSReps(string text)
+        public static List<string> ToUPSReps(List<Token> tokens, List<WordRecord> selectedDiacritics)
         {
             try
             {
                 List<string> upsReps = new List<string>();
-                List<string> diacs = new List<string>();
-                List<string> urduWords = parse(text);
 
-                // Choose diacritics - main problem here - right now we are choosing 0th diacritics always
-                for (int i = 0; i < urduWords.Count; i++)
+                for (int i = 0; i < tokens.Count; i++)
                 {
-                    short delimIndex = isDelimeter(urduWords[i]);
-                    if (delimIndex < 0)
-                    {
-                        List<WordRecord> diacRec = DataAccessLayer.SearchRecordsByWord(urduWords[i]);
-
-                        if (diacRec != null)
-                            diacs.Add(diacRec[0].DiacriticRep);
-                    }
+                    if (tokens[i].classPart == TokenType.Delimeter)
+                        upsReps.Add(tokens[i].valuePart);
                     else
                     {
-                        diacs.Add(EncodeDelimeterToPhoneme(delimIndex));
+                        for (int j = 0; j < selectedDiacritics.Count; j++)
+                        {
+                            if (tokens[i].valuePart == selectedDiacritics[j].UrduWord)
+                            {
+                                upsReps.Add(selectedDiacritics[j].UpsRep);
+                                break;
+                            }
+                        }
                     }
-                }
-
-                for (int i = 0; i < diacs.Count; i++)
-                {
-                    short delimIndex = isDelimeterPhoneme(diacs[i]);
-                    if (delimIndex < 0)
-                        upsReps.Add(DataAccessLayer.SearchRecordsByDiacritic(diacs[i])[0].UpsRep);
-                    else
-                        upsReps.Add(diacs[i]);
                 }
 
                 return upsReps;
@@ -104,12 +98,12 @@ namespace UrduTTS
             try
             {
                 List<string> ipaReps = new List<string>();
-                List<string> urduWords = parse(text);
+                //List<string> urduWords = parse(text);
 
-                for (int i = 0; i < urduWords.Count; i++)
-                {
+                //for (int i = 0; i < urduWords.Count; i++)
+                //{
 
-                }
+                //}
 
                 return ipaReps;
             }
@@ -122,24 +116,24 @@ namespace UrduTTS
         // Desc:    Parses urdu text and separates it into tokens of string
         // Input:   Urdu text (with delimeters and diacritics(optional))
         // Output:  List of strings containing urdu words
-        private static List<string> parse(string urduText)
+        private static List<Token> parse(string urduText)
         {
             try
             {
-                List<string> tokensList = new List<string>();
+                List<Token> tokensList = new List<Token>();
                 string buffer = null;
+
                 for (int i = 0; i < urduText.Length; i++)
                 { 
-                   
                     // if current character a delimeter, get its index
                     if (isDelimeter(urduText[i].ToString()) >= 0)            // if it is delimeter
                     {
                         if ((buffer = buffer.Trim()) != String.Empty)
                         {
-                            tokensList.Add(buffer);     // break here, add buffered word till here
+                            tokensList.Add(new Token(TokenType.Word, buffer));     // break here, add buffered word till here
                             buffer = "";
                         }
-                        tokensList.Add(urduText[i].ToString());
+                        tokensList.Add(new Token(TokenType.Delimeter, urduText[i].ToString()));
                     }
                     else
                     {
@@ -150,45 +144,12 @@ namespace UrduTTS
                     {
                         if ((buffer = buffer.Trim()) != "")
                         {
-                            tokensList.Add(buffer);     // break here, add buffered word till here
+                            tokensList.Add(new Token(TokenType.Word, buffer));     // break here, add buffered word till here
                             buffer = "";
                         }
                     }
                 }
                 return tokensList;
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-        }
-
-        private static List<string> urduWordToDiacritics(List<string> urduWords)
-        {
-            try
-            {
-                return null;
-
-                //List<string> diacriticsList = new List<string>();
-                //foreach (string word in urduWords)
-                //{
-                //    if (isDelimeterPhoneme(word) < 0)   // if it is not a delimeter, i.e. its a word
-                //    {
-                //        // then proceed to look for its diacritics
-                //        List<WordRecord> availDiacs = DataAccessLayer.SearchRecordsByWord(word);
-                //        if (availDiacs == null)
-                //        {
-                //            diacriticsList.Add(word);
-                //        }
-                //        else
-                //        {
-                //            diacriticsList.Add(availDiacs[0].DiacriticRep);
-                //        }
-                //    }
-                //    else
-                //        diacriticsList.Add(word);
-                //}
-                //return diacriticsList;
             }
             catch (Exception)
             {
@@ -321,10 +282,17 @@ namespace UrduTTS
     #endregion
 
     #region Struct Token
+    public enum TokenType { Delimeter, Word }
     public struct Token
     {
-        TokenType classPart;
-        string valuePart;
+        public TokenType classPart;
+        public string valuePart;
+
+        public Token(TokenType cp, string vp)
+        {
+            classPart = cp;
+            valuePart = vp;
+        }
     }
     #endregion
 }

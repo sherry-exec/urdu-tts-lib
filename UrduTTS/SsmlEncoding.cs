@@ -14,9 +14,7 @@ namespace UrduTTS
         // Private data members
         SpeechSynthesizer synthesizer = null;
         PromptBuilder ssmlBuilder = null;
-
-        PhoneticRepresentation OutputPhoneticRepresentation = PhoneticRepresentation.UPS;
-
+        
         // Constructors
         public SsmlEncoding()
         {
@@ -25,28 +23,8 @@ namespace UrduTTS
                 synthesizer = new SpeechSynthesizer();
                 synthesizer.Rate = 1;
                 synthesizer.TtsVolume = 70;
-                synthesizer.SetOutputToDefaultAudioDevice();
 
                 TextProcessing.Init();
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-        }
-
-        // Public Functions
-        public void SpeakStart(string text, bool async = true)
-        {
-            try
-            {
-                ssmlBuilder = new PromptBuilder();
-                ssmlBuilder.AppendSsmlMarkup(GetSsml(text));
-
-                if (async)
-                    synthesizer.SpeakAsync(ssmlBuilder);
-                else
-                    synthesizer.Speak(ssmlBuilder);
             }
             catch (Exception)
             {
@@ -61,6 +39,8 @@ namespace UrduTTS
                 ssmlBuilder = new PromptBuilder();
                 ssmlBuilder.AppendSsmlMarkup(GetSsml(phonemes));
 
+                synthesizer.SetOutputToDefaultAudioDevice();
+
                 if (async)
                     synthesizer.SpeakAsync(ssmlBuilder);
                 else
@@ -72,13 +52,15 @@ namespace UrduTTS
             }
         }
 
-        public void SaveToFile(string text, string path)
+        public void SaveToFile(List<string> phonemes, string path)
         {
             try
             {
                 ssmlBuilder = new PromptBuilder();
-                ssmlBuilder.AppendSsmlMarkup(GetSsml(text));
+                ssmlBuilder.AppendSsmlMarkup(GetSsml(phonemes));
+
                 synthesizer.SetOutputToWaveFile(path);
+                synthesizer.Speak(ssmlBuilder);
             }
             catch (Exception)
             {
@@ -153,21 +135,6 @@ namespace UrduTTS
                 return "<break strength=\"" + phoneme + "\" />";
             else
                 return "<phoneme alphabet =\"x-microsoft-ups\" ph=\"" + phoneme + "\" />";
-        }
-
-        private string GetSsml(string text)
-        {
-            try
-            {
-                if(OutputPhoneticRepresentation == PhoneticRepresentation.UPS)
-                    return GetSsml(TextProcessing.ToUPSReps(text));
-                else
-                    return GetSsml(TextProcessing.ToIPAReps(text));
-            }
-            catch (Exception)
-            {
-                throw;
-            }
         }
 
         private string GetSsml(List<string> phonemes)
